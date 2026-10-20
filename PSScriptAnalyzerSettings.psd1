@@ -14,7 +14,8 @@
         PSUseCompatibleSyntax = @{
             Enable         = $true
             # Only major versions from v3.0 are supported
-            TargetVersions = @('4.0', '5.0', '6.0', '7.0')
+            # Windows PowerShell 5.1 uses the PowerShell 5 syntax baseline.
+            TargetVersions = @('5.0')
         }
 
         # General rules

@@ -1,6 +1,23 @@
 Changelog
 =========
 
+Standalone fork: 1.0.0-rc1
+------------------------
+
+- Add one deployable `Invoke-EndpointMaintenance.ps1`, with Audit by default.
+- Replace cleanup modes with Clean plus explicit operation switches and All.
+- Default to 180-day stale-profile retention; process all eligible profiles.
+- Add guarded Windows-profile-provider removal and post-deletion verification.
+- Replace blanket temp purges with age-filtered, path-validated file cleanup.
+- Add protected structured logs, profile CSV, summaries, exit codes, overlap
+  prevention, interrupted-run records, and WhatIf support.
+- Make servicing explicit, with no automatic reboot or Windows Update fallback.
+- Remove update installation/scanning, downloads, browser/Recycle Bin/WER
+  clearing, NGEN, PowerShell help updates, and raw environment dumps.
+- Preserve original module files under `legacy/` and retain the MIT license.
+- Add dependency-free portable/Windows tests and a validation workflow.
+- Windows 10/11 SYSTEM pilot remains required; see `docs/validation.md`.
+
 v0.7.0
 ------
 
