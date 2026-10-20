@@ -1,200 +1,107 @@
-# PSWinVitals workstation maintenance
+# PSWinVitals
 
-One PowerShell script for audits and selected unattended workstation maintenance.
-Derived from [ralish/PSWinVitals](https://github.com/ralish/PSWinVitals).
+`Invoke-EndpointMaintenance.ps1` audits Windows workstations and performs selected cleanup and repair operations. Deploy this PS1 only.
 
-**Version: 1.0.0-rc1.** Deploy only
-[Invoke-EndpointMaintenance.ps1](Invoke-EndpointMaintenance.ps1). The original
-module remains under [legacy](legacy/README.md) for reference, with its original
-defaults. It is not the new deployment entry point.
+- Audit: hardware, CPU/RAM, disks, device errors, recent error events, security/network status, installed programs, existing update history, crash-dump metadata, and all registered profiles with age, size, and removal eligibility.
+- Clean: temporary files, stale profiles, Windows component-store cleanup, and Windows repair.
+- No Windows Update scans/installations, software downloads, forced logoff, or automatic restart.
 
-Requirements: Windows 10/11 x64, native **64-bit Windows PowerShell 5.1**, and
-SYSTEM or an elevated administrator. No module, package, or configuration file
-needs to be installed on endpoints.
+## Requirements
 
-## Audit
+- Windows 10/11 x64.
+- Native 64-bit Windows PowerShell 5.1. PowerShell 7, 32-bit PowerShell, Windows Server, and ARM64 are unsupported.
+- SYSTEM or an elevated administrator.
+- No additional modules or configuration files. The script is unsigned; follow the existing script-signing/execution policy.
+
+## Switches and examples
+
+No switches runs an audit. `-Clean` alone selects temp cleanup. Explicit operation switches replace that default and require `-Clean`. `-All` selects all four maintenance operations; `-CheckIntegrity` is separate.
 
 ```powershell
+# Audit
 .\Invoke-EndpointMaintenance.ps1
 
-# Different profile-retention threshold in the report.
-.\Invoke-EndpointMaintenance.ps1 -ProfileAgeDays 365
-
-# Faster audit without profile file-tree size/safety inspection.
-.\Invoke-EndpointMaintenance.ps1 -SkipProfileSizes
-
-# Optional DISM ScanHealth, SFC verifyonly, and bare CHKDSK.
-.\Invoke-EndpointMaintenance.ps1 -CheckIntegrity
-```
-
-Audit collects OS/hardware information, sampled CPU/RAM usage, disk space and
-provider-reported disk health, device errors, recent error-event summaries,
-security status, domain/network status, installed-program registry entries,
-existing update history, crash-dump metadata, and **every registered profile**.
-Unregistered profile directories are reported, not automatically removed.
-
-Profile reports include activity evidence, logical size estimates, exclusions,
-and removal candidates. The default threshold is **180 days**, approximately
-six months. Audit requests no cleanup, repair, or configuration change. It
-writes its own reports; Windows tools may write their normal diagnostic logs.
-Profile enumeration and integrity checks can cause substantial I/O. CPU/RAM
-values are a sample, not performance history or a diagnosis.
-
-## Clean
-
-`-Clean` alone cleans temporary files. Operation flags replace that default:
-only the selected operations run. `-All` selects all four operations below.
-
-| Switch | Operation |
-| --- | --- |
-| `-TempFiles` | Delete old files from Windows Temp and safe unloaded profiles' Local Temp. |
-| `-RemoveStaleProfiles` | Remove every eligible complete profile older than the retention threshold. |
-| `-ComponentStore` | DISM StartComponentCleanup without ResetBase. |
-| `-RepairWindows` | DISM RestoreHealth with LimitAccess, then SFC scannow. |
-| `-All` | Select all four maintenance operations. Requires `-Clean`. |
-
-```powershell
-# Standard cleanup: temporary files older than 7 days.
+# Standard cleanup
 .\Invoke-EndpointMaintenance.ps1 -Clean
 
-# Preview complete profile removal; selects profiles only.
+# Preview stale-profile removal
 .\Invoke-EndpointMaintenance.ps1 -Clean -RemoveStaleProfiles -WhatIf
-
-# Remove ALL eligible profiles older than 180 days.
-.\Invoke-EndpointMaintenance.ps1 -Clean -RemoveStaleProfiles -ProfileAgeDays 180
-
-# Select two operations and retain named shared/service profiles.
-.\Invoke-EndpointMaintenance.ps1 -Clean -TempFiles -RemoveStaleProfiles `
-    -ExcludeProfiles 'kiosk,sharedaccount,serviceaccount'
-
-# Preview every maintenance operation, then run it.
-.\Invoke-EndpointMaintenance.ps1 -Clean -All -WhatIf
-.\Invoke-EndpointMaintenance.ps1 -Clean -All
-
-# Optional compatible repair-source directory staged locally beforehand.
-.\Invoke-EndpointMaintenance.ps1 -Clean -RepairWindows `
-    -RepairSource 'C:\RepairSource\Windows'
 ```
 
-`-CheckIntegrity` is a separate diagnostic option. `-WhatIf` keeps cleanup
-targets unchanged while writing the plan/reports. It does not bypass safety
-prerequisites; a preview can still report Deferred. There is no profile-count
-or work-budget cap. Allow the agent enough time to finish.
+Examples below are arguments to append to `.\Invoke-EndpointMaintenance.ps1`.
 
-No operation installs Windows updates, initiates update scans, downloads
-software, clears browser stores, purges the Recycle Bin/WER, stops applications,
-repairs domain trust, schedules boot repair, or restarts Windows. Explicit
-whole-profile removal does delete browser data and other local files inside
-that selected profile.
+| Switch | Behavior / default | Example arguments |
+| --- | --- | --- |
+| `-Clean` | Enable maintenance; temp cleanup if no operations are selected. | `-Clean` |
+| `-TempFiles` | Delete old files from Windows Temp and eligible unloaded profiles' Local Temp. | `-Clean -TempFiles` |
+| `-RemoveStaleProfiles` | Permanently remove every eligible complete profile older than `ProfileAgeDays`, including its local files and settings. No profile-count limit. | `-Clean -RemoveStaleProfiles -ProfileAgeDays 180` |
+| `-ComponentStore` | DISM StartComponentCleanup; no ResetBase or restart. | `-Clean -ComponentStore` |
+| `-RepairWindows` | DISM RestoreHealth with LimitAccess, then SFC scannow; no Windows Update fallback. | `-Clean -RepairWindows` |
+| `-All` | Select TempFiles, RemoveStaleProfiles, RepairWindows, and ComponentStore. | `-Clean -All` |
+| `-CheckIntegrity` | Run DISM ScanHealth, SFC verifyonly, and read-only CHKDSK on the Windows volume. | `-CheckIntegrity` |
+| `-ProfileAgeDays <days>` | Profile inactivity threshold. Default `180`; range `1-3650`. Also applies to audit eligibility. | `-ProfileAgeDays 365` |
+| `-TempAgeDays <days>` | Minimum age of both creation and last-write timestamps. Default `7`; range `1-3650`. | `-Clean -TempAgeDays 14` |
+| `-ExcludeProfiles <names/SIDs>` | Retain additional exact profile directory names or SIDs. Case-insensitive; accepts one comma-separated argument. | `-Clean -RemoveStaleProfiles -ExcludeProfiles "kiosk,sharedaccount"` |
+| `-RepairSource <path>` | Existing compatible local repair-source directory; requires RepairWindows. Without it, use available local/policy sources. | `-Clean -RepairWindows -RepairSource "C:\RepairSource\Windows"` |
+| `-SkipProfileSizes` | Skip profile tree inspection for inventory; removal candidates are still fully inspected. | `-SkipProfileSizes` |
+| `-WhatIf` | Preview maintenance and write reports without changing cleanup targets. Safety checks still apply. | `-Clean -All -WhatIf` |
+| `-Confirm` | Prompt before maintenance actions. Omit for unattended runs. | `-Clean -TempFiles -Confirm` |
 
-## Profile safeguards
+Combine operation switches to select only those operations:
 
-Age uses profile-service registry load/unload FILETIME evidence, with newer
-valid CIM activity making the decision more conservative. It measures profile
-activity, not proof of the exact last interactive sign-in. Missing, invalid,
-or future evidence never makes a profile automatically stale.
+```powershell
+.\Invoke-EndpointMaintenance.ps1 -Clean -TempFiles -RemoveStaleProfiles -ProfileAgeDays 180 -ExcludeProfiles "kiosk,sharedaccount"
+```
 
-The script retains:
+Profile age uses registry profile load/unload evidence and newer valid CIM activity, not an exact interactive sign-in record. Missing, invalid, or future activity evidence prevents removal. Local/system, loaded/referenced, excluded, roaming/redirected, encrypted/cloud/container, unsafe-path, and incompletely inspected profiles are retained. Removal uses the Windows profile provider and verifies that registration and directory are gone.
 
-- Loaded/referenced profiles, executing/system/built-in identities, and local accounts.
-- Exact directory names or SIDs supplied through `-ExcludeProfiles`.
-- Roaming, mandatory, temporary, corrupt, and known folder-redirection profiles.
-- Profiles outside the registered local root, mismatched/duplicate registrations,
-  mounted hives, and missing/unreadable directories.
-- Profiles with incomplete safety inspection, EFS-encrypted files, cloud/offline
-  placeholders, OneDrive directories, container evidence, or nonstandard links.
-  Known legacy profile junctions are skipped only when their targets remain
-  within that same profile; links are never traversed.
+Profile removal and servicing defer while any interactive session is connected or disconnected. Servicing also defers for low battery, a pending servicing reboot, or existing servicing work. Temp cleanup skips recent/locked files, links, and loaded profiles' Temp folders.
 
-Add shared, domain service, kiosk, and emergency-access accounts to exclusions;
-they cannot all be discovered automatically. A comma-separated exclusion
-argument works through `powershell.exe -File` and Endpoint Central. Interactive
-PowerShell arrays also work. Matching is exact and case-insensitive.
+## Reports
 
-Removal defers while any interactive session is connected or disconnected.
-Before each deletion, the script refreshes age, loaded state, registration,
-path, exclusions, and session state. Windows' profile provider performs the
-deletion through Remove-CimInstance. The provider instance, exact registry
-key, and directory must all disappear. Leftovers are a failure requiring
-review; there is no fallback recursive purge. `-SkipProfileSizes` does not
-disable safety inspection for a removal candidate.
-
-**Complete removal permanently deletes that profile's local Desktop, Downloads,
-AppData, certificates, caches, browser data, and settings.** Age does not prove
-that files are backed up, and there is no built-in undo. The domain account and
-separate server home folders are not deletion targets.
-
-## Temp cleanup and servicing
-
-Both creation and last-write times must precede `-TempAgeDays` (default 7).
-The temp root and empty directories remain. Recent/locked files are skipped;
-links are not followed and old parent folders are not recursively purged.
-Running users' loaded profile Temp folders are skipped. Access/enumeration
-failures are reported rather than marked successful.
-
-Repair/component cleanup defer for interactive sessions, low battery, pending
-servicing reboot, or existing servicing work. The script never kills another
-task or reboots. Native stdout/stderr go to separate files. SFC capture does
-not change the host's console encoding.
-
-DISM always uses `/LimitAccess` for repair, preventing Windows Update fallback.
-Without `-RepairSource`, Windows uses available local or policy-configured
-sources; missing compatible files can cause failure. The optional source must
-be an existing local directory. Component cleanup uses `/NoRestart` and never
-`/ResetBase`.
-
-## Reports and exit codes
-
-Runs are saved under
-`C:\ProgramData\PSWinVitals\Runs\<UTC-time>-<run-id>\`.
+Location: `%ProgramData%\PSWinVitals\Runs\<UTC-time>-<run-id>\`.
 
 | File | Contents |
 | --- | --- |
-| `summary.txt` | Task states/findings, profile totals/largest profiles, disk-space change, and report path. Also printed to the console. |
-| `result.json` | Versioned structured results and effective selections. |
-| `profiles.csv` | All profiles, activity evidence, eligibility, reasons, and removal outcomes. |
-| `events.jsonl` | Flushed task/action start/end records and errors. |
-| `*.log` | Native output and servicing logs, when selected. |
+| `summary.txt` | Task results, findings, profile totals, disk-space change, and report path. Also printed to the console. |
+| `result.json` | Structured results and effective options. |
+| `profiles.csv` | All profiles, activity evidence, size estimates, eligibility/exclusions, and removal outcomes. |
+| `events.jsonl` | Flushed task/action records and errors. |
+| `*.log` | Native stdout/stderr and servicing logs when selected. |
 
-The report root permits SYSTEM/Administrators writes only. Unsafe existing
-ownership/ACLs or linked paths are rejected. One exclusive file lock prevents
-overlapping runs. Completed older logs expire after 30 days or approximately
-200 MiB retained; current/unfinished evidence is retained. Reports remain local.
+Reports stay local. SYSTEM/Administrators can write to the report root; unsafe ownership, permissions, or linked paths are rejected. One exclusive lock prevents overlapping runs. Completed older logs expire after 30 days or approximately 200 MiB retained; current/unfinished evidence is kept.
 
-Execution state is separate from health findings. An audit can complete and
-find corruption. Unsupported/inconclusive checks stay Unknown. Exit 0 does not
-mean the workstation is healthy. Logical sizes are estimates; observed disk
-free-space changes include concurrent activity.
+Interrupted cleanup leaves `%ProgramData%\PSWinVitals\active.json` and blocks later cleanup. Review the referenced run and any partial profile deletion, confirm servicing has finished, then remove that marker file only before rerunning. Audit remains available.
 
-| Exit | Meaning |
+## Exit codes
+
+| Code | Meaning |
 | --- | --- |
-| 0 | Selected work completed, including valid no-op/preview runs; findings can still require attention. |
-| 1 | An operation/report failed, or a PowerShell invocation error occurred. |
-| 2 | A host, selection, path, or logging precheck failed. |
-| 10 | Requested maintenance was deferred. |
-| 1618 | Another run holds the lock. |
+| `0` | Selected work completed, including a valid no-op or preview. Health findings can still require attention. |
+| `1` | Operation/report failure or PowerShell invocation error. |
+| `2` | Host, selection, path, or logging precheck failed. |
+| `10` | Maintenance deferred. |
+| `1618` | Another run holds the lock. |
 
-An interrupted cleanup leaves `C:\ProgramData\PSWinVitals\active.json` pointing
-to its run directory. Later cleanup defers. Review those logs and any partial
-profile deletion, confirm servicing has finished, then remove **that marker
-file only** before rerunning. Audit remains available. Ambiguous destructive
-work is not automatically retried.
+Exit codes describe execution, not workstation health. Review findings in the reports.
 
-## Deploy and validate
+## Endpoint Central deployment
 
-See [Endpoint Central deployment](docs/endpoint-central-deployment.md) and
-[validation status](docs/validation.md). Start with Audit and WhatIf on a test
-workstation before enabling destructive operations.
+1. Upload `Invoke-EndpointMaintenance.ps1` to the Script Repository.
+2. Create a Windows Custom Script **Computer Configuration**. Run as **System user** using native **64-bit Windows PowerShell 5.1**.
+3. Set arguments from the examples above. Leave arguments empty for Audit. Add shared/service/kiosk names or SIDs to `-ExcludeProfiles` when removing profiles.
+4. Enable execution logging. Accept exit `0` as success. Codes `10` and `1618` mean work did not run; accepting them as success hides that distinction in the console.
+5. Allow enough execution time for all profiles and servicing. Disable immediate automatic cleanup retries. Schedule profile removal/servicing when no users are signed in, including disconnected sessions.
+6. Pilot Audit, WhatIf, and cleanup on a Windows 10/11 test workstation through Endpoint Central as SYSTEM before broad deployment. Confirm profile exclusions and local data retention first.
 
-```powershell
-.\tests\Invoke-Tests.ps1
+For a command-line configuration launched by a 64-bit process:
+
+```text
+%windir%\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -NonInteractive -File "Invoke-EndpointMaintenance.ps1" -Clean
 ```
 
-The dependency-free workflow runs Windows PowerShell 5.1 and portable checks;
-it does not install modules. A Windows 10/11 SYSTEM pilot is still required.
+From a 32-bit launching process on x64 Windows, replace `System32` with `Sysnative`. Use the copied script's path and the desired arguments. Do not pass `-Confirm` for unattended runs.
 
-## License and history
+The console receives the summary; full reports remain under ProgramData. Collect them separately if central retention is needed. Keep Windows updates and reboots in the existing patch process.
 
-MIT. The original notice is in [LICENSE](LICENSE) and embedded in the standalone
-file. Upstream history and the original module are preserved. The superseded
-DeepClean/five-profile proposal remains in Git history, not the supported CLI.
+MIT license: [LICENSE](LICENSE). Based on [ralish/PSWinVitals](https://github.com/ralish/PSWinVitals).
