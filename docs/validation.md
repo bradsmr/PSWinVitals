@@ -6,6 +6,10 @@ Version: 1.0.0-rc1. Date: 2026-10-20.
 
 - PowerShell parser: passed in PowerShell 7.6.6 on Linux.
 - Dependency-free portable tests: **40 passed, 0 failed**.
+- GitHub Actions: **44 passed, 0 failed** in Windows PowerShell 5.1;
+  **40 passed, 0 failed** in PowerShell 7.6.6 on Ubuntu.
+  [Recorded run](https://github.com/bradsmr/PSWinVitals/actions/runs/39507533784)
+  at implementation commit `70c1b782ac43e391add5f1d842b2a9059d91478d`.
 - Unsupported-host execution: exited 2 with a clear message on Linux.
 - Reviewed source: no update installation/scan, module download, browser clearing,
   Recycle Bin purge, process termination, forced logoff, or automatic reboot.
@@ -20,19 +24,19 @@ native argument strings, output decoding, and empty/nonempty reports.
 Provider mutations are simulated against new disposable test directories.
 This does not validate real Win32_UserProfile deletion semantics on Windows.
 
-## Included Windows checks
+## Windows checks
 
 The workflow runs `tests/Invoke-Tests.ps1` in **Windows PowerShell 5.1** on a
 Windows runner. Additional cases exercise WTS enumeration, file locks, actual
 native argv parsing, and audit orchestration/secure logging with synthetic
 collectors. They do not repair Windows or remove employee profiles.
 
-Until a workflow run is recorded, the Windows-specific cases are **included but
-not yet executed**. A Linux parser check is not Windows 5.1/SYSTEM certification.
+All included Windows cases passed. The hosted runner used Windows Server 2025
+and Windows PowerShell 5.1.26100.33438. The audit orchestration case substitutes
+the workstation identity and synthetic collectors; production execution still
+rejects servers. These checks are not Windows 10/11 SYSTEM certification.
 
-An optional linter installation was blocked by automatic approval review after
-outbound telemetry was attempted. It was not retried or bypassed. No linter
-success is claimed. Tests and the workflow install no modules.
+PSScriptAnalyzer was not run. Tests and the workflow install no modules.
 
 ## Required before broad deployment
 
